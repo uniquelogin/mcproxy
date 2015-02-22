@@ -5,6 +5,7 @@ import "fmt"
 import "log"
 import "time"
 import "os"
+import "flag"
 
 
 func tickerLoop(c chan int) {
@@ -26,14 +27,14 @@ func readLoop(conn *net.TCPConn, c chan []byte) {
     }
 }
 
-func handleConn(clientConn *net.TCPConn) {
+func handleConn(clientConn *net.TCPConn, serverAddr string) {
     serverLogName := fmt.Sprintf("log_%d", time.Now().Unix())
     logFile, err := os.Create(serverLogName)
     if err != nil {
         panic(fmt.Sprintf("Failed to open output log file %s", serverLogName))
     }
 
-    addr, err := net.ResolveTCPAddr("tcp4", "127.0.0.1:25566")
+    addr, err := net.ResolveTCPAddr("tcp4", serverAddr)
     if err != nil {
         panic("IPv4 is no longer supported, it seems")
     }
@@ -78,15 +79,25 @@ func handleConn(clientConn *net.TCPConn) {
     clientConn.Close()
 }
 
+func getCmd () (proxyAddrPtr, serverAddrPtr  *string) {
+	proxyAddrPtr = flag.String("proxy_addr", "localhost:25565", "MC proxy address")
+	serverAddrPtr = flag.String("server_addr", "localhost:25566", "MC server address")
+	flag.Parse()
+
+	return proxyAddrPtr, serverAddrPtr
+}
+
 func main() {
-    addr, err := net.ResolveTCPAddr("tcp4", "localhost:25565")
+    var proxyAddrPtr, serverAddrPtr *string	= getCmd()
+
+    addr, err := net.ResolveTCPAddr("tcp4", *proxyAddrPtr)
     if err != nil {
-        panic("Failed to understand localhost:25565, duh")
+		panic(fmt.Sprintf(" Failed to understand %v, duh", *proxyAddrPtr))
     }
 
     l, err := net.ListenTCP("tcp4", addr)
     if err != nil {
-        panic("Failed to listen on localhost:25565")
+        panic(fmt.Sprintf("Failed to listen on %v", *proxyAddrPtr))
     }
 
     log.Print("Listening");
@@ -94,10 +105,10 @@ func main() {
     for { 
         conn, err := l.AcceptTCP()
         if err != nil {
-            fmt.Println("Error accepting the inbound connection");
+            fmt.Println("Error accepting the inbound connection")
         } else {
-            log.Print("Accepted a connection");
-            go handleConn(conn)            
+            log.Print("Accepted a connection")
+            go handleConn(conn, *serverAddrPtr)
         }
     }
 }
